@@ -75,3 +75,63 @@ for message in st.session_state.messages:
         avatar=message.get('avatar'),
     ):
         st.markdown(message['content'])
+
+# React to user input
+if prompt := st.chat_input('Your message here...'):
+    # Save this as a chat for later
+    if st.session_state.chat_id not in past_chats.keys():
+        past_chats[st.session_state.chat_id] = st.session_state.chat_title
+        joblib.dump(past_chats, 'data/past_chats_list')
+    # Display user message in chat message container
+    with st.chat_message('user'):
+        st.markdown(prompt)
+    # Add user message to chat history
+    st.session_state.messages.append(
+        dict(
+            role='user',
+            content=prompt,
+        )
+    )
+    ## Send message to AI
+    response = st.session_state.chat.send_message(
+        prompt,
+        stream=True,
+    )
+    # Display assistant response in chat message container
+    with st.chat_message(
+        name=MODEL_ROLE,
+        avatar=AI_AVATAR_ICON,
+    ):
+        message_placeholder = st.empty()
+        full_response = ''
+        assistant_response = response
+        # Streams in a chunk at a time
+        for chunk in response:
+            # Simulate stream of chunk
+            # TODO: Chunk missing `text` if API stops mid-stream ("safety"?)
+            for ch in chunk.text.split(' '):
+                full_response += ch + ' '
+                time.sleep(0.05)
+                # Rewrites with a cursor at end
+                message_placeholder.write(full_response + '▌')
+        # Write full message with placeholder
+        message_placeholder.write(full_response)
+
+    # Add assistant response to chat history
+    st.session_state.messages.append(
+        dict(
+            role=MODEL_ROLE,
+            content=st.session_state.chat.history[-1].parts[0].text,
+            avatar=AI_AVATAR_ICON,
+        )
+    )
+    st.session_state.gemini_history = st.session_state.chat.history
+    # Save to file
+    joblib.dump(
+        st.session_state.messages,
+        f'data/{st.session_state.chat_id}-st_messages',
+    )
+    joblib.dump(
+        st.session_state.gemini_history,
+        f'data/{st.session_state.chat_id}-gemini_messages',
+    )
